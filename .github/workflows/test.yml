@@ -17,6 +17,9 @@ jobs:
         with:
           version: latest
           platform: x64
+      - id: setup-valgrind
+        name: Set up Valgrind
+        run: sudo apt install -y build-essential valgrind
       # TODO: use https://github.com/marketplace/actions/changed-files to
       # only check changed files
       - name: Set up Python
@@ -30,4 +33,4 @@ jobs:
         run: |
           meson setup build -Dtests=true
           meson compile -C build
-          meson test -C build
+          meson test -C build --wrapper "valgrind --leak-check=full --error-exitcode=1 -s"
