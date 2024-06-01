@@ -1,17 +1,20 @@
 project(
   'raggetable',
   'c',
-  version: '0.1',
+  version: '0.1.1',
   default_options: ['warning_level=3', 'c_std=gnu99', 'optimization=3'],
 )
+
+lib_inc = include_directories('.')
 
 lib_sources = files(
   'hashtable.c',
 )
 
-raggetable = library('raggetable', lib_sources, install: true)
+raggetable = library('raggetable', lib_sources, include_directories: lib_inc, install: true)
 dep_raggetable = declare_dependency(
   link_with: [raggetable],
+  include_directories: lib_inc,
 )
 
 install_headers('hashtable.h', subdir: 'raggetable')
