@@ -4,8 +4,15 @@
 #include <string.h>
 #include <unistd.h>
 
+const size_t _table_sizes[]
+    = { 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241,
+          786433, 1572869, 3145739, 6291469, 12582917, 25165843, 50331653,
+          100663319, 201326611, 402653189, 805306457, 1610612741 };
+const size_t _table_sizes_count
+    = sizeof(_table_sizes) / sizeof(_table_sizes[0]);
+
 #ifndef HASHTABLE_DEFAULT_CAPACITY
-#define HASHTABLE_DEFAULT_CAPACITY 1024
+#define HASHTABLE_DEFAULT_CAPACITY 769
 #endif
 
 // FNV-1a hash function
@@ -26,29 +33,55 @@ __attribute__((always_inline)) static inline size_t fnv1a(const char* key)
     return hash;
 }
 
+static size_t get_next_table_size(const size_t current_size)
+{
+    for (size_t i = 0; i < _table_sizes_count; i++) {
+        if (_table_sizes[i] > current_size) {
+            return _table_sizes[i];
+        }
+    }
+    return current_size * 2;
+}
+
+static size_t hashtable_hash(hashtable_t* self, const char* key)
+{
+    size_t index = self->hash_func(key) % self->capacity;
+    size_t i = 0;
+
+    while (self->items[index].key != NULL
+        && strcmp(self->items[index].key, key) != 0) {
+        i++;
+        index = (index + i * i) % self->capacity;
+    }
+
+    return index;
+}
+
 /**
  * Grow the hashtable by doubling its capacity and rehashing all the items
  */
 static void hashtable_grow(hashtable_t* self)
 {
-    size_t new_capacity = self->capacity * 2;
-    item_t* new_items = malloc(sizeof(item_t) * new_capacity);
+    size_t new_capacity = get_next_table_size(self->capacity);
 
-    memset(new_items, 0, sizeof(item_t) * new_capacity);
+    hashtable_t* tmp_table = hashtable_new_with_capacity(new_capacity);
 
     for (size_t i = 0; i < self->capacity; i++) {
         if (self->items[i].key == NULL) {
             continue;
         }
-
-        size_t new_index = self->hash_func(self->items[i].key) % new_capacity;
-
-        new_items[new_index] = self->items[i];
+        size_t new_index = hashtable_hash(tmp_table, self->items[i].key);
+        tmp_table->items[new_index] = self->items[i];
     }
 
     free(self->items);
-    self->items = new_items;
+    self->items = tmp_table->items;
     self->capacity = new_capacity;
+
+    // We set the items to NULL so that the free function doesn't free the
+    // keys and values.
+    tmp_table->items = NULL;
+    hashtable_free(tmp_table);
 }
 
 hashtable_t* hashtable_new(void)
@@ -61,13 +94,11 @@ hashtable_t* hashtable_new_with_capacity(size_t initial_capacity)
     hashtable_t* self = malloc(sizeof(*self));
 
     *self = (hashtable_t) {
-        .items = malloc(sizeof(item_t) * initial_capacity),
+        .items = calloc(initial_capacity, sizeof(*self->items)),
         .capacity = initial_capacity,
         .free_func = NULL,
         .hash_func = &fnv1a,
     };
-
-    memset(self->items, 0, sizeof(item_t) * initial_capacity);
 
     return self;
 }
@@ -84,63 +115,63 @@ __attribute__((always_inline)) inline void hashtable_set_free_func(
 
 bool hashtable_exists(hashtable_t* self, const char* key)
 {
-    size_t index = self->hash_func(key) % self->capacity;
-    const char* _key = self->items[index].key;
-
-    return _key && *_key == *key && strcmp(_key, key) == 0;
+    size_t index = hashtable_hash(self, key);
+    return self->items[index].key != NULL;
 }
 
 void* hashtable_get(hashtable_t* self, const char* key)
 {
-    size_t index = self->hash_func(key) % self->capacity;
-    const char* _key = self->items[index].key;
-    return _key && *_key == *key && strcmp(_key, key) == 0
-        ? self->items[index].value
-        : NULL;
+    size_t index = hashtable_hash(self, key);
+    return self->items[index].value;
 }
 
 void hashtable_set(hashtable_t* self, const char* key, void* value)
 {
-    size_t index = self->hash_func(key) % self->capacity;
+    size_t index = hashtable_hash(self, key);
     item_t* item = &self->items[index];
-    // There's already an item here
-    if (item->key) {
-        // Same key, we're replacing the item
-        if (strcmp(item->key, key) == 0) {
-            if (item->value && self->free_func) {
-                self->free_func(item->value);
-            }
-            item->value = value;
-        }
-        // Collision. Same index, different key
-        else {
-            // Grow the table and try again
+
+    // Set a new item
+    if (item->key == NULL) {
+        // Grow the table if it's more than 70% full
+        if ((float)self->length / self->capacity >= 0.7f) {
+            // Grow the table
             hashtable_grow(self);
             hashtable_set(self, key, value);
             return;
         }
-    }
-    // Setting a new item
-    else {
+        self->length++;
+
         item->value = value;
         item->key = strdup(key);
+    }
+    // Replace an existing item
+    else {
+        if (item->value && self->free_func) {
+            self->free_func(item->value);
+        }
+        item->value = value;
     }
 }
 
 bool hashtable_remove(hashtable_t* self, const char* key, void** value)
 {
-    size_t index = self->hash_func(key) % self->capacity;
+    size_t index = hashtable_hash(self, key);
     item_t* item = &self->items[index];
 
     if (item->key == NULL) {
-        *value = NULL;
+        if (value) {
+            *value = NULL;
+        }
         return false;
     }
 
-    *value = item->value;
+    if (value) {
+        *value = item->value;
+    }
     free(item->key);
     item->key = NULL;
     item->value = NULL;
+    self->length--;
     return true;
 }
 
@@ -149,16 +180,18 @@ void hashtable_free(hashtable_t* self)
     if (!self)
         return;
 
-    for (size_t i = 0; i < self->capacity; i++) {
-        if (self->items[i].key != NULL) {
-            if (self->free_func) {
-                self->free_func(self->items[i].value);
+    if (self->items) {
+        for (size_t i = 0; i < self->capacity; i++) {
+            if (self->items[i].key != NULL) {
+                if (self->free_func) {
+                    self->free_func(self->items[i].value);
+                }
+                free(self->items[i].key);
             }
-            free(self->items[i].key);
         }
+        free(self->items);
     }
 
-    free(self->items);
     free(self);
 }
 
@@ -177,5 +210,6 @@ bool hashtable_delete(hashtable_t* self, const char* key)
     free(item->key);
     item->key = NULL;
     item->value = NULL;
+    self->length--;
     return true;
 }

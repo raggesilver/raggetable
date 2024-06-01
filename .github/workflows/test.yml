@@ -33,4 +33,5 @@ jobs:
         run: |
           meson setup build -Dtests=true
           meson compile -C build
-          meson test -C build --wrapper "valgrind --leak-check=full --error-exitcode=1 -s"
+          meson test -C build --verbose --wrapper "valgrind --leak-check=full --error-exitcode=1 -s"
+          meson test -C build --benchmark --verbose

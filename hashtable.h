@@ -27,6 +27,7 @@ typedef struct s_item {
 typedef struct s_hashtable {
     item_t* items;
     size_t capacity;
+    size_t length;
 
     hashtable_free_func_t free_func;
     hashtable_hash_func_t hash_func;
