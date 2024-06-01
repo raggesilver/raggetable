@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+
 /**
  * A function used to free values in the hashtable. This function will be called
  * on every value in the hashtable when the hashtable is freed.
@@ -47,7 +48,7 @@ typedef struct s_hashtable {
         }                                                                      \
         {                                                                      \
             __attribute__((unused)) const char* key = table->items[i].key;     \
-            void* value = table->items[i].value;                               \
+            __attribute__((unused)) void* value = table->items[i].value;       \
             fn                                                                 \
         }                                                                      \
     }

@@ -2,6 +2,9 @@
 #include "unity.h"
 #include <stdbool.h>
 
+// Force loads of collisions and resizes
+// #define HASHTABLE_DEFAULT_CAPACITY 2
+
 void setUp(void) { }
 
 void tearDown(void) { }
@@ -56,6 +59,32 @@ static void test_hashtable_remove(void)
     hashtable_free(table);
 }
 
+static void test_hashtable_exists(void)
+{
+    hashtable_t* table = hashtable_new();
+
+    int num = 42;
+    hashtable_set(table, "num", &num);
+
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num"));
+    TEST_ASSERT_FALSE(hashtable_exists(table, "num1"));
+
+    hashtable_set(table, "num1", &num);
+    hashtable_set(table, "num2", &num);
+    hashtable_set(table, "num3", &num);
+    hashtable_set(table, "num4", &num);
+    hashtable_set(table, "num5", &num);
+
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num1"));
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num2"));
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num3"));
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num4"));
+    TEST_ASSERT_TRUE(hashtable_exists(table, "num5"));
+    TEST_ASSERT_FALSE(hashtable_exists(table, "num6"));
+
+    hashtable_free(table);
+}
+
 static void test_hashtable_foreach(void)
 {
     hashtable_t* table = hashtable_new();
@@ -84,6 +113,7 @@ int main(void)
     RUN_TEST(test_hashtable_delete);
     RUN_TEST(test_hashtable_remove);
     RUN_TEST(test_hashtable_foreach);
+    RUN_TEST(test_hashtable_exists);
 
     return UNITY_END();
 }

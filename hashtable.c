@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 #ifndef HASHTABLE_DEFAULT_CAPACITY
-#define HASHTABLE_DEFAULT_CAPACITY 128
+#define HASHTABLE_DEFAULT_CAPACITY 1024
 #endif
 
 // FNV-1a hash function
@@ -34,7 +34,7 @@ static void hashtable_grow(hashtable_t* self)
     size_t new_capacity = self->capacity * 2;
     item_t* new_items = malloc(sizeof(item_t) * new_capacity);
 
-    bzero(new_items, sizeof(item_t) * new_capacity);
+    memset(new_items, 0, sizeof(item_t) * new_capacity);
 
     for (size_t i = 0; i < self->capacity; i++) {
         if (self->items[i].key == NULL) {
@@ -67,7 +67,7 @@ hashtable_t* hashtable_new_with_capacity(size_t initial_capacity)
         .hash_func = &fnv1a,
     };
 
-    bzero(self->items, sizeof(item_t) * initial_capacity);
+    memset(self->items, 0, sizeof(item_t) * initial_capacity);
 
     return self;
 }
@@ -85,13 +85,18 @@ __attribute__((always_inline)) inline void hashtable_set_free_func(
 bool hashtable_exists(hashtable_t* self, const char* key)
 {
     size_t index = self->hash_func(key) % self->capacity;
-    return self->items[index].key != NULL;
+    const char* _key = self->items[index].key;
+
+    return _key && *_key == *key && strcmp(_key, key) == 0;
 }
 
 void* hashtable_get(hashtable_t* self, const char* key)
 {
     size_t index = self->hash_func(key) % self->capacity;
-    return self->items[index].value;
+    const char* _key = self->items[index].key;
+    return _key && *_key == *key && strcmp(_key, key) == 0
+        ? self->items[index].value
+        : NULL;
 }
 
 void hashtable_set(hashtable_t* self, const char* key, void* value)

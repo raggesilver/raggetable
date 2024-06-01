@@ -1,7 +1,7 @@
 project(
   'raggetable',
   'c',
-  version: '0.1.1',
+  version: '0.1.2',
   default_options: ['warning_level=3', 'c_std=gnu99', 'optimization=3'],
 )
 
